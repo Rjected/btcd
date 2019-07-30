@@ -134,3 +134,97 @@ func TestDoubleHashFuncs(t *testing.T) {
 		}
 	}
 }
+
+// sequentialBytes produces a buffer of size consecutive bytes 0x00, 0x01, ...,
+// used for testing.
+func sequentialBytes(size int) []byte {
+	result := make([]byte, size)
+	for i := range result {
+		result[i] = byte(i)
+	}
+	return result
+}
+
+// BenchmarkHashB benchmarks the performance of HashB, which should be hash(b).
+// This first prepares an array of sequential bytes
+// ([0x00, 0x01, ..., 0x1e, 0x1f]), resets the benchmark timer, and lets the
+// benchmark time the hash function. This uses a modified unexported method
+// sequentialBytes, taken from golang.org/x/crypto/sha3/sha3_test.go
+func BenchmarkHashB(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	// We set 32 here twice because each hash (each operation) must process 32
+	// bytes, and we need to generate 32 bytes of data so we can hash it.
+	data := sequentialBytes(32)
+	b.SetBytes(32)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		HashB(data)
+	}
+	b.StopTimer()
+}
+
+// BenchmarkDoubleHashB benchmarks the performance of DoubleHashB, which should
+// be hash(hash(b)). This first prepares an array of sequential bytes
+// ([0x00, 0x01, ..., 0x1e, 0x1f]), resets the benchmark timer, and lets the
+// benchmark time the hash function. This uses a modified unexported method
+// sequentialBytes, taken from golang.org/x/crypto/sha3/sha3_test.go
+func BenchmarkDoubleHashB(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	// We set 32 and 64 here because each hash (each operation) must process 32
+	// bytes twice, and we need to generate 32 bytes of data so we can hash it.
+	data := sequentialBytes(32)
+	b.SetBytes(64)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		DoubleHashB(data)
+	}
+	b.StopTimer()
+}
+
+// BenchmarkDoubleHashH benchmarks the performance of DoubleHashH, which should
+// be hash(hash(b)). This first prepares an array of sequential bytes
+// ([0x00, 0x01, ..., 0x1e, 0x1f]), resets the benchmark timer, and lets the
+// benchmark time the hash function. This uses a modified unexported method
+// sequentialBytes, taken from golang.org/x/crypto/sha3/sha3_test.go
+func BenchmarkDoubleHashH(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	// We set 32 and 64 here because each hash (each operation) must process 32
+	// bytes twice, and we need to generate 32 bytes of data so we can hash it.
+	data := sequentialBytes(32)
+	b.SetBytes(64)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		DoubleHashH(data)
+	}
+	b.StopTimer()
+}
+
+// BenchmarkHashH benchmarks the performance of HashH, which should be hash(b).
+// This first prepares an array of sequential bytes
+// ([0x00, 0x01, ..., 0x1e, 0x1f]), resets the benchmark timer, and lets the
+// benchmark time the hash function. This uses a modified unexported method
+// sequentialBytes, taken from golang.org/x/crypto/sha3/sha3_test.go
+func BenchmarkHashH(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+	// We set 32 here twice because each hash (each operation) must process 32
+	// bytes, and we need to generate 32 bytes of data so we can hash it.
+	data := sequentialBytes(32)
+	b.SetBytes(32)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		HashH(data)
+	}
+	b.StopTimer()
+}

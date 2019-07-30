@@ -91,7 +91,7 @@ func TestHash(t *testing.T) {
 	}
 }
 
-// TestHashString  tests the stringized output for hashes.
+// TestHashString tests the stringized output for hashes.
 func TestHashString(t *testing.T) {
 	// Block 100000 hash.
 	wantStr := "000000000003ba27aa200b1cecaad478d2b00432346c3f1f3986da1afd33e506"
