@@ -92,26 +92,27 @@ func listCommands() {
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	ShowVersion   bool   `short:"V" long:"version" description:"Display version information and exit"`
-	ListCommands  bool   `short:"l" long:"listcommands" description:"List all of the supported commands and exit"`
-	ConfigFile    string `short:"C" long:"configfile" description:"Path to configuration file"`
-	RPCUser       string `short:"u" long:"rpcuser" description:"RPC username"`
-	RPCPassword   string `short:"P" long:"rpcpass" default-mask:"-" description:"RPC password"`
-	RPCServer     string `short:"s" long:"rpcserver" description:"RPC server to connect to"`
-	RPCCert       string `short:"c" long:"rpccert" description:"RPC server certificate chain for validation"`
-	NoTLS         bool   `long:"notls" description:"Disable TLS"`
-	Proxy         string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
-	ProxyUser     string `long:"proxyuser" description:"Username for proxy server"`
-	ProxyPass     string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-	TestNet3      bool   `long:"testnet" description:"Connect to testnet"`
-	SimNet        bool   `long:"simnet" description:"Connect to the simulation test network"`
-	TLSSkipVerify bool   `long:"skipverify" description:"Do not verify tls certificates (not recommended!)"`
-	Wallet        bool   `long:"wallet" description:"Connect to wallet"`
+	ShowVersion    bool   `short:"V" long:"version" description:"Display version information and exit"`
+	ListCommands   bool   `short:"l" long:"listcommands" description:"List all of the supported commands and exit"`
+	ConfigFile     string `short:"C" long:"configfile" description:"Path to configuration file"`
+	RPCUser        string `short:"u" long:"rpcuser" description:"RPC username"`
+	RPCPassword    string `short:"P" long:"rpcpass" default-mask:"-" description:"RPC password"`
+	RPCServer      string `short:"s" long:"rpcserver" description:"RPC server to connect to"`
+	RPCCert        string `short:"c" long:"rpccert" description:"RPC server certificate chain for validation"`
+	NoTLS          bool   `long:"notls" description:"Disable TLS"`
+	Proxy          string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
+	ProxyUser      string `long:"proxyuser" description:"Username for proxy server"`
+	ProxyPass      string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
+	TestNet3       bool   `long:"testnet" description:"Connect to testnet"`
+	RegressionTest bool   `long:"regtest" description:"Connect to the regression test network"`
+	SimNet         bool   `long:"simnet" description:"Connect to the simulation test network"`
+	TLSSkipVerify  bool   `long:"skipverify" description:"Do not verify tls certificates (not recommended!)"`
+	Wallet         bool   `long:"wallet" description:"Connect to wallet"`
 }
 
 // normalizeAddress returns addr with the passed default port appended if
 // there is not already a port specified.
-func normalizeAddress(addr string, useTestNet3, useSimNet, useWallet bool) string {
+func normalizeAddress(addr string, useTestNet3, useSimNet, useRegressionTest, useWallet bool) string {
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		var defaultPort string
@@ -127,6 +128,12 @@ func normalizeAddress(addr string, useTestNet3, useSimNet, useWallet bool) strin
 				defaultPort = "18554"
 			} else {
 				defaultPort = "18556"
+			}
+		case useRegressionTest:
+			if useWallet {
+				defaultPort = "18442"
+			} else {
+				defaultPort = "18446"
 			}
 		default:
 			if useWallet {
@@ -254,9 +261,12 @@ func loadConfig() (*config, []string, error) {
 	if cfg.SimNet {
 		numNets++
 	}
+	if cfg.RegressionTest {
+		numNets++
+	}
 	if numNets > 1 {
-		str := "%s: The testnet and simnet params can't be used " +
-			"together -- choose one of the two"
+		str := "%s: The testnet, regtest, and simnet params can't be used " +
+			"together -- choose one of the three"
 		err := fmt.Errorf(str, "loadConfig")
 		fmt.Fprintln(os.Stderr, err)
 		return nil, nil, err
@@ -274,7 +284,7 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to RPC server based on --testnet and --wallet flags
 	// if needed.
 	cfg.RPCServer = normalizeAddress(cfg.RPCServer, cfg.TestNet3,
-		cfg.SimNet, cfg.Wallet)
+		cfg.SimNet, cfg.RegressionTest, cfg.Wallet)
 
 	return &cfg, remainingArgs, nil
 }
