@@ -93,6 +93,84 @@ func NewRenameAccountCmd(oldAccount, newAccount string) *RenameAccountCmd {
 	}
 }
 
+// PsbtInput represents an input to include in the PSBT created by the
+// WalletCreateFundedPsbtCmd command.
+type PsbtInput struct {
+	Txid     string `json:"txid"`
+	Vout     int64  `json:"vout"`
+	Sequence int64  `json:"sequence"`
+}
+
+// PsbtOutput represents an output to include in the PSBT created by the
+// WalletCreateFundedPsbtCmd command.
+type PsbtOutput map[string]float64
+
+// NewPsbtOutput returns a new instance of a PSBT output to use with the
+// WalletCreateFundedPsbtCmd command.
+func NewPsbtOutput(address string, amount float64) PsbtOutput {
+	out := make(map[string]float64)
+	out[address] = amount
+	return out
+}
+
+// WalletCreateFundedPsbtOpts represents the optional options struct provided
+// with a WalletCreateFundedPsbtCmd command.
+type WalletCreateFundedPsbtOpts struct {
+	ChangeAddress          *string  `json:"changeAddress,omitempty"`
+	ChangePosition         *int64   `json:"changePosition,omitempty"`
+	ChangeType             *string  `json:"change_type,omitempty"`
+	IncludeWatching        *bool    `json:"includeWatching,omitempty"`
+	LockUnspents           *bool    `json:"lockUnspents,omitempty"`
+	FeeRate                *int64   `json:"feeRate,omitempty"`
+	SubtractFeeFromOutputs *[]int64 `json:"subtractFeeFromOutputs,omitempty"`
+	Replaceable            *bool    `json:"replaceable,omitempty"`
+	ConfTarget             *int64   `json:"conf_target,omitempty"`
+	EstimateMode           *string  `json:"estimate_mode,omitempty"`
+}
+
+// WalletCreateFundedPsbtCmd defines the walletcreatefundedpsbt JSON-RPC command.
+type WalletCreateFundedPsbtCmd struct {
+	Inputs      []PsbtInput
+	Outputs     []PsbtOutput
+	Locktime    *int64
+	Options     *WalletCreateFundedPsbtOpts
+	Bip32Derivs *bool
+}
+
+// NewWalletCreateFundedPsbtCmd returns a new instance which can be used to issue a
+// walletcreatefundedpsbt JSON-RPC command.
+func NewWalletCreateFundedPsbtCmd(
+	inputs []PsbtInput, outputs []PsbtOutput, locktime *int64,
+	options *WalletCreateFundedPsbtOpts, bip32Derivs *bool,
+) *WalletCreateFundedPsbtCmd {
+	return &WalletCreateFundedPsbtCmd{
+		Inputs:      inputs,
+		Outputs:     outputs,
+		Locktime:    locktime,
+		Options:     options,
+		Bip32Derivs: bip32Derivs,
+	}
+}
+
+// WalletProcessPsbtCmd defines the walletprocesspsbt JSON-RPC command.
+type WalletProcessPsbtCmd struct {
+	Psbt        string
+	Sign        *bool `jsonrpcdefault:"true"`
+	SighashType *string
+	Bip32Derivs *bool
+}
+
+// NewWalletProcessPsbtCmd returns a new instance which can be used to issue a
+// walletprocesspsbt JSON-RPC command.
+func NewWalletProcessPsbtCmd(psbt string, sign *bool, sighashType *string, bip32Derivs *bool) *WalletProcessPsbtCmd {
+	return &WalletProcessPsbtCmd{
+		Psbt:        psbt,
+		Sign:        sign,
+		SighashType: sighashType,
+		Bip32Derivs: bip32Derivs,
+	}
+}
+
 func init() {
 	// The commands in this file are only usable with a wallet server.
 	flags := UFWalletOnly
@@ -103,4 +181,6 @@ func init() {
 	MustRegisterCmd("importpubkey", (*ImportPubKeyCmd)(nil), flags)
 	MustRegisterCmd("importwallet", (*ImportWalletCmd)(nil), flags)
 	MustRegisterCmd("renameaccount", (*RenameAccountCmd)(nil), flags)
+	MustRegisterCmd("walletcreatefundedpsbt", (*WalletCreateFundedPsbtCmd)(nil), flags)
+	MustRegisterCmd("walletprocesspsbt", (*WalletProcessPsbtCmd)(nil), flags)
 }

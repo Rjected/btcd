@@ -159,3 +159,18 @@ type GetBestBlockResult struct {
 	Hash   string `json:"hash"`
 	Height int32  `json:"height"`
 }
+
+// WalletCreateFundedPsbtResult models the data returned from the
+// walletcreatefundedpsbtresult command.
+type WalletCreateFundedPsbtResult struct {
+	Psbt      string  `json:"psbt"`
+	Fee       float64 `json:"fee"`
+	ChangePos int64   `json:"changepos"`
+}
+
+// WalletProcessPsbtResult models the data returned from the
+// walletprocesspsbtresult command.
+type WalletProcessPsbtResult struct {
+	Psbt     string `json:"psbt"`
+	Complete bool   `json:"complete"`
+}

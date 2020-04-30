@@ -139,6 +139,78 @@ func TestBtcWalletExtCmds(t *testing.T) {
 				NewAccount: "newacct",
 			},
 		},
+		{
+			name: "walletcreatefundedpsbt",
+			newCmd: func() (interface{}, error) {
+				return btcjson.NewCmd(
+					"walletcreatefundedpsbt",
+					[]btcjson.PsbtInput{
+						btcjson.PsbtInput{
+							Txid:     "1234",
+							Vout:     0,
+							Sequence: 0,
+						},
+					},
+					[]btcjson.PsbtOutput{
+						btcjson.NewPsbtOutput("1234", 1234),
+					},
+					btcjson.Int64(1),
+					btcjson.WalletCreateFundedPsbtOpts{},
+					btcjson.Bool(true),
+				)
+			},
+			staticCmd: func() interface{} {
+				return btcjson.NewWalletCreateFundedPsbtCmd(
+					[]btcjson.PsbtInput{
+						btcjson.PsbtInput{
+							Txid:     "1234",
+							Vout:     0,
+							Sequence: 0,
+						},
+					},
+					[]btcjson.PsbtOutput{
+						btcjson.NewPsbtOutput("1234", 1234),
+					},
+					btcjson.Int64(1),
+					&btcjson.WalletCreateFundedPsbtOpts{},
+					btcjson.Bool(true),
+				)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"walletcreatefundedpsbt","params":[[{"txid":"1234","vout":0,"sequence":0}],[{"1234":1234}],1,{},true],"id":1}`,
+			unmarshalled: &btcjson.WalletCreateFundedPsbtCmd{
+				Inputs: []btcjson.PsbtInput{
+					btcjson.PsbtInput{
+						Txid:     "1234",
+						Vout:     0,
+						Sequence: 0,
+					},
+				},
+				Outputs: []btcjson.PsbtOutput{
+					btcjson.NewPsbtOutput("1234", 1234),
+				},
+				Locktime:    btcjson.Int64(1),
+				Options:     &btcjson.WalletCreateFundedPsbtOpts{},
+				Bip32Derivs: btcjson.Bool(true),
+			},
+		},
+		{
+			name: "walletprocesspsbt",
+			newCmd: func() (interface{}, error) {
+				return btcjson.NewCmd(
+					"walletprocesspsbt", "1234", btcjson.Bool(true), btcjson.String("ALL"), btcjson.Bool(true))
+			},
+			staticCmd: func() interface{} {
+				return btcjson.NewWalletProcessPsbtCmd(
+					"1234", btcjson.Bool(true), btcjson.String("ALL"), btcjson.Bool(true))
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"walletprocesspsbt","params":["1234",true,"ALL",true],"id":1}`,
+			unmarshalled: &btcjson.WalletProcessPsbtCmd{
+				Psbt:        "1234",
+				Sign:        btcjson.Bool(true),
+				SighashType: btcjson.String("ALL"),
+				Bip32Derivs: btcjson.Bool(true),
+			},
+		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
