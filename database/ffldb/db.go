@@ -25,6 +25,7 @@ import (
 	"github.com/btcsuite/goleveldb/leveldb/iterator"
 	"github.com/btcsuite/goleveldb/leveldb/opt"
 	"github.com/btcsuite/goleveldb/leveldb/util"
+	"github.com/cornelk/hashmap"
 )
 
 const (
@@ -229,10 +230,11 @@ func (c *cursor) Delete() error {
 func (c *cursor) skipPendingUpdates(forwards bool) {
 	for c.dbIter.Valid() {
 		var skip bool
+		var ok bool
 		key := c.dbIter.Key()
-		if c.bucket.tx.pendingRemove.Has(key) {
+		if _, ok = c.bucket.tx.pendingRemove.Get(key); ok {
 			skip = true
-		} else if c.bucket.tx.pendingKeys.Has(key) {
+		} else if _, ok = c.bucket.tx.pendingKeys.Get(key); ok {
 			skip = true
 		}
 		if !skip {
@@ -966,22 +968,23 @@ type transaction struct {
 	pendingBlockData []pendingBlock
 
 	// Keys that need to be stored or deleted on commit.
-	pendingKeys   *treap.Mutable
-	pendingRemove *treap.Mutable
+	// We are using this hashmap because it is fast.
+	pendingKeys   *hashmap.HashMap
+	pendingRemove *hashmap.HashMap
 
 	// Active iterators that need to be notified when the pending keys have
 	// been updated so the cursors can properly handle updates to the
 	// transaction state.
 	activeIterLock sync.RWMutex
-	activeIters    []*treap.Iterator
+	activeIters    []*iterator.Iterator
 }
 
 // Enforce transaction implements the database.Tx interface.
 var _ database.Tx = (*transaction)(nil)
 
 // removeActiveIter removes the passed iterator from the list of active
-// iterators against the pending keys treap.
-func (tx *transaction) removeActiveIter(iter *treap.Iterator) {
+// iterators against the pending keys map.
+func (tx *transaction) removeActiveIter(iter *iterator.Iterator) {
 	// An indexing for loop is intentionally used over a range here as range
 	// does not reevaluate the slice on each iteration nor does it adjust
 	// the index for the modified slice.
@@ -997,21 +1000,11 @@ func (tx *transaction) removeActiveIter(iter *treap.Iterator) {
 }
 
 // addActiveIter adds the passed iterator to the list of active iterators for
-// the pending keys treap.
-func (tx *transaction) addActiveIter(iter *treap.Iterator) {
+// the pending keys map.
+func (tx *transaction) addActiveIter(iter *iterator.Iterator) {
 	tx.activeIterLock.Lock()
 	tx.activeIters = append(tx.activeIters, iter)
 	tx.activeIterLock.Unlock()
-}
-
-// notifyActiveIters notifies all of the active iterators for the pending keys
-// treap that it has been updated.
-func (tx *transaction) notifyActiveIters() {
-	tx.activeIterLock.RLock()
-	for _, iter := range tx.activeIters {
-		iter.ForceReseek()
-	}
-	tx.activeIterLock.RUnlock()
 }
 
 // checkClosed returns an error if the the database or transaction is closed.
@@ -1030,10 +1023,12 @@ func (tx *transaction) hasKey(key []byte) bool {
 	// When the transaction is writable, check the pending transaction
 	// state first.
 	if tx.writable {
-		if tx.pendingRemove.Has(key) {
+		_, ok := tx.pendingRemove.Get(key)
+		if ok {
 			return false
 		}
-		if tx.pendingKeys.Has(key) {
+		_, ok = tx.pendingKeys.Get(key)
+		if ok {
 			return true
 		}
 	}
@@ -1050,12 +1045,11 @@ func (tx *transaction) hasKey(key []byte) bool {
 func (tx *transaction) putKey(key, value []byte) error {
 	// Prevent the key from being deleted if it was previously scheduled
 	// to be deleted on transaction commit.
-	tx.pendingRemove.Delete(key)
+	tx.pendingRemove.Del(key)
 
 	// Add the key/value pair to the list to be written on transaction
 	// commit.
-	tx.pendingKeys.Put(key, value)
-	tx.notifyActiveIters()
+	tx.pendingKeys.Set(key, value)
 	return nil
 }
 
@@ -1066,11 +1060,13 @@ func (tx *transaction) fetchKey(key []byte) []byte {
 	// When the transaction is writable, check the pending transaction
 	// state first.
 	if tx.writable {
-		if tx.pendingRemove.Has(key) {
+		_, ok := tx.pendingRemove.Get(key)
+		if ok {
 			return nil
 		}
-		if value := tx.pendingKeys.Get(key); value != nil {
-			return value
+		if value, ok := tx.pendingKeys.Get(key); ok {
+			pendingBytes, _ := value.([]byte)
+			return pendingBytes
 		}
 	}
 
@@ -1084,18 +1080,14 @@ func (tx *transaction) fetchKey(key []byte) []byte {
 //
 // NOTE: This function must only be called on a writable transaction.  Since it
 // is an internal helper function, it does not check.
-func (tx *transaction) deleteKey(key []byte, notifyIterators bool) {
+func (tx *transaction) deleteKey(key []byte) {
 	// Remove the key from the list of pendings keys to be written on
 	// transaction commit if needed.
-	tx.pendingKeys.Delete(key)
+	tx.pendingKeys.Del(key)
 
 	// Add the key to the list to be deleted on transaction	commit.
-	tx.pendingRemove.Put(key, nil)
+	tx.pendingRemove.Set(key, nil)
 
-	// Notify the active iterators about the change if the flag is set.
-	if notifyIterators {
-		tx.notifyActiveIters()
-	}
 }
 
 // nextBucketID returns the next bucket ID to use for creating a new bucket.
@@ -1791,8 +1783,8 @@ func (db *db) begin(writable bool) (*transaction, error) {
 		writable:      writable,
 		db:            db,
 		snapshot:      snapshot,
-		pendingKeys:   treap.NewMutable(),
-		pendingRemove: treap.NewMutable(),
+		pendingKeys:   &hashmap.HashMap{},
+		pendingRemove: &hashmap.HashMap{},
 	}
 	tx.metaBucket = &bucket{tx: tx, id: metadataBucketID}
 	tx.blockIdxBucket = &bucket{tx: tx, id: blockIdxBucketID}

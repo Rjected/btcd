@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/goleveldb/leveldb"
 	"github.com/btcsuite/goleveldb/leveldb/iterator"
 	"github.com/btcsuite/goleveldb/leveldb/util"
+	"github.com/cornelk/hashmap"
 )
 
 const (
@@ -41,7 +42,7 @@ const (
 // ldbCacheIter wraps a treap iterator to provide the additional functionality
 // needed to satisfy the leveldb iterator.Iterator interface.
 type ldbCacheIter struct {
-	*treap.Iterator
+	*iterator.Iterator
 }
 
 // Enforce ldbCacheIterator implements the leveldb iterator.Iterator interface.
@@ -285,17 +286,20 @@ func (iter *dbCacheIterator) Error() error {
 // database at a particular point in time.
 type dbCacheSnapshot struct {
 	dbSnapshot    *leveldb.Snapshot
-	pendingKeys   *treap.Immutable
-	pendingRemove *treap.Immutable
+	pendingKeys   *hashmap.HashMap
+	pendingRemove *hashmap.HashMap
 }
 
 // Has returns whether or not the passed key exists.
 func (snap *dbCacheSnapshot) Has(key []byte) bool {
 	// Check the cached entries first.
-	if snap.pendingRemove.Has(key) {
+	_, ok := snap.pendingRemove.Get(key)
+	if ok {
 		return false
 	}
-	if snap.pendingKeys.Has(key) {
+
+	_, ok = snap.pendingKeys.Get(key)
+	if ok {
 		return true
 	}
 

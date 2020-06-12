@@ -12,7 +12,7 @@ import (
 // ldbTreapIter wraps a treap iterator to provide the additional functionality
 // needed to satisfy the leveldb iterator.Iterator interface.
 type ldbTreapIter struct {
-	*treap.Iterator
+	iterator.Iterator
 	tx       *transaction
 	released bool
 }
