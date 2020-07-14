@@ -7,7 +7,6 @@ package blockchain
 import (
 	"fmt"
 	"math"
-	"runtime"
 	"time"
 
 	"github.com/btcsuite/btcd/txscript"
@@ -119,55 +118,108 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 	if len(items) == 0 {
 		return nil
 	}
+	for _, txVI := range items {
+		txIn := txVI.txIn
+		utxo := v.utxoView.LookupEntry(txIn.PreviousOutPoint)
+		if utxo == nil {
+			str := fmt.Sprintf("unable to find unspent "+
+				"output %v referenced from "+
+				"transaction %s:%d",
+				txIn.PreviousOutPoint, txVI.tx.Hash(),
+				txVI.txInIndex)
+			err := ruleError(ErrMissingTxOut, str)
+			return err
+		}
 
-	// Limit the number of goroutines to do script validation based on the
-	// number of processor cores.  This helps ensure the system stays
-	// reasonably responsive under heavy load.
-	maxGoRoutines := runtime.NumCPU() * 3
-	if maxGoRoutines <= 0 {
-		maxGoRoutines = 1
+		// Create a new script engine for the script pair.
+		sigScript := txIn.SignatureScript
+		witness := txIn.Witness
+		pkScript := utxo.PkScript()
+		inputAmount := utxo.Amount()
+		vm, err := txscript.NewEngine(pkScript, txVI.tx.MsgTx(),
+			txVI.txInIndex, v.flags, v.sigCache, txVI.sigHashes,
+			inputAmount)
+		if err != nil {
+			str := fmt.Sprintf("failed to parse input "+
+				"%s:%d which references output %v - "+
+				"%v (input witness %x, input script "+
+				"bytes %x, prev output script bytes %x)",
+				txVI.tx.Hash(), txVI.txInIndex,
+				txIn.PreviousOutPoint, err, witness,
+				sigScript, pkScript)
+			err := ruleError(ErrScriptMalformed, str)
+			return err
+		}
+
+		// Execute the script pair.
+		if err := vm.Execute(); err != nil {
+			str := fmt.Sprintf("failed to validate input "+
+				"%s:%d which references output %v - "+
+				"%v (input witness %x, input script "+
+				"bytes %x, prev output script bytes %x)",
+				txVI.tx.Hash(), txVI.txInIndex,
+				txIn.PreviousOutPoint, err, witness,
+				sigScript, pkScript)
+			err := ruleError(ErrScriptValidation, str)
+			return err
+		}
 	}
-	if maxGoRoutines > len(items) {
-		maxGoRoutines = len(items)
-	}
+
+	// Validation succeeded.
+	//v.sendResult(nil)
+
+	/*
+		// Limit the number of goroutines to do script validation based on the
+		// number of processor cores.  This helps ensure the system stays
+		// reasonably responsive under heavy load.
+		maxGoRoutines := runtime.NumCPU() * 3
+		if maxGoRoutines <= 0 {
+			maxGoRoutines = 1
+		}
+		if maxGoRoutines > len(items) {
+			maxGoRoutines = len(items)
+		}
+	*/
 
 	// Start up validation handlers that are used to asynchronously
 	// validate each transaction input.
-	for i := 0; i < maxGoRoutines; i++ {
-		go v.validateHandler()
-	}
+	//for i := 0; i < maxGoRoutines; i++ {
+	//go v.validateHandler()
+	//}
 
 	// Validate each of the inputs.  The quit channel is closed when any
 	// errors occur so all processing goroutines exit regardless of which
 	// input had the validation error.
-	numInputs := len(items)
-	currentItem := 0
-	processedItems := 0
-	for processedItems < numInputs {
-		// Only send items while there are still items that need to
-		// be processed.  The select statement will never select a nil
-		// channel.
-		var validateChan chan *txValidateItem
-		var item *txValidateItem
-		if currentItem < numInputs {
-			validateChan = v.validateChan
-			item = items[currentItem]
-		}
+	/*
+			numInputs := len(items)
+			currentItem := 0
+			processedItems := 0
+			for processedItems < numInputs {
+				// Only send items while there are still items that need to
+				// be processed.  The select statement will never select a nil
+				// channel.
+				var validateChan chan *txValidateItem
+				var item *txValidateItem
+				if currentItem < numInputs {
+					validateChan = v.validateChan
+					item = items[currentItem]
+				}
 
-		select {
-		case validateChan <- item:
-			currentItem++
+				select {
+				case validateChan <- item:
+					currentItem++
 
-		case err := <-v.resultChan:
-			processedItems++
-			if err != nil {
-				close(v.quitChan)
-				return err
+				case err := <-v.resultChan:
+					processedItems++
+					if err != nil {
+						close(v.quitChan)
+						return err
+					}
+				}
 			}
-		}
-	}
 
-	close(v.quitChan)
+		close(v.quitChan)
+	*/
 	return nil
 }
 
@@ -216,26 +268,73 @@ func ValidateTransactionScripts(tx *btcutil.Tx, utxoView *UtxoViewpoint,
 
 	// Collect all of the transaction inputs and required information for
 	// validation.
-	txIns := tx.MsgTx().TxIn
-	txValItems := make([]*txValidateItem, 0, len(txIns))
-	for txInIdx, txIn := range txIns {
+	//txIns := tx.MsgTx().TxIn
+	//txValItems := make([]*txValidateItem, 0, len(txIns))
+	for txInIdx, txIn := range tx.MsgTx().TxIn {
 		// Skip coinbases.
 		if txIn.PreviousOutPoint.Index == math.MaxUint32 {
 			continue
 		}
 
-		txVI := &txValidateItem{
-			txInIndex: txInIdx,
-			txIn:      txIn,
-			tx:        tx,
-			sigHashes: cachedHashes,
+		/*
+			txVI := &txValidateItem{
+				txInIndex: txInIdx,
+				txIn:      txIn,
+				tx:        tx,
+				sigHashes: cachedHashes,
+			}
+			txValItems = append(txValItems, txVI)
+		*/
+		//txIn := txVI.txIn
+		utxo := utxoView.LookupEntry(txIn.PreviousOutPoint)
+		if utxo == nil {
+			str := fmt.Sprintf("unable to find unspent "+
+				"output %v referenced from "+
+				"transaction %s:%d",
+				txIn.PreviousOutPoint, tx.Hash(),
+				txInIdx)
+			err := ruleError(ErrMissingTxOut, str)
+			return err
 		}
-		txValItems = append(txValItems, txVI)
+
+		// Create a new script engine for the script pair.
+		sigScript := txIn.SignatureScript
+		witness := txIn.Witness
+		pkScript := utxo.PkScript()
+		inputAmount := utxo.Amount()
+		vm, err := txscript.NewEngine(pkScript, tx.MsgTx(),
+			txInIdx, flags, sigCache, cachedHashes,
+			inputAmount)
+		if err != nil {
+			str := fmt.Sprintf("failed to parse input "+
+				"%s:%d which references output %v - "+
+				"%v (input witness %x, input script "+
+				"bytes %x, prev output script bytes %x)",
+				tx.Hash(), txInIdx,
+				txIn.PreviousOutPoint, err, witness,
+				sigScript, pkScript)
+			err := ruleError(ErrScriptMalformed, str)
+			return err
+		}
+
+		// Execute the script pair.
+		if err := vm.Execute(); err != nil {
+			str := fmt.Sprintf("failed to validate input "+
+				"%s:%d which references output %v - "+
+				"%v (input witness %x, input script "+
+				"bytes %x, prev output script bytes %x)",
+				tx.Hash(), txInIdx,
+				txIn.PreviousOutPoint, err, witness,
+				sigScript, pkScript)
+			err := ruleError(ErrScriptValidation, str)
+			return err
+		}
 	}
 
 	// Validate all of the inputs.
-	validator := newTxValidator(utxoView, flags, sigCache, hashCache)
-	return validator.Validate(txValItems)
+	//validator := newTxValidator(utxoView, flags, sigCache, hashCache)
+	//return validator.Validate(txValItems)
+	return nil
 }
 
 // checkBlockScripts executes and validates the scripts for all transactions in
