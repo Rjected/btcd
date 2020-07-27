@@ -7,10 +7,53 @@ distinct machines, and end up with a byte-for-byte identical binary. However,
 this wasn't _fully_ solved in `go1.13`, as the build system still includes the
 directory the binary is built into the binary itself. As a result, our scripts
 utilize a work around needed until `go1.13.2`.
+Every release should note which Go version was used to build the release, so
+that version should be used for verifying the release.
 
 ## Building a New Release
 
-### macOS/Linux/Windows (WSL)
+### Tagging and pushing a new tag (for maintainers)
+
+Before running release scripts, two things need to happen in order to finally
+create a release and make sure there are no mistakes in the release process.
+
+The tagged commit should be a commit that bumps version numbers in `version.go`
+and `cmd/btcctl/version.go`.
+For example (taken from [f3ec130](https://github.com/btcsuite/btcd/commit/f3ec13030e4e828869954472cbc51ac36bee5c1d)):
+```diff
+diff --git a/cmd/btcctl/version.go b/cmd/btcctl/version.go
+index 2195175c71..f65cacef7e 100644
+--- a/cmd/btcctl/version.go
++++ b/cmd/btcctl/version.go
+@@ -18,7 +18,7 @@ const semanticAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
+ const (
+ 	appMajor uint = 0
+ 	appMinor uint = 20
+-	appPatch uint = 0
++	appPatch uint = 1
+ 
+ 	// appPreRelease MUST only contain characters from semanticAlphabet
+ 	// per the semantic versioning spec.
+diff --git a/version.go b/version.go
+index 92fd60fdd4..fba55b5a37 100644
+--- a/version.go
++++ b/version.go
+@@ -18,7 +18,7 @@ const semanticAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
+ const (
+ 	appMajor uint = 0
+ 	appMinor uint = 20
+-	appPatch uint = 0
++	appPatch uint = 1
+ 
+ 	// appPreRelease MUST only contain characters from semanticAlphabet
+ 	// per the semantic versioning spec.
+```
+
+Next, this commit should be signed by the maintainer using `git commit -S`.
+The commit should be tagged and signed with `git tag <TAG> -s`, and should be
+pushed using `git push origin TAG`.
+
+### Building a release on macOS/Linux/Windows (WSL)
 
 No prior set up is needed on Linux or macOS is required in order to build the
 release binaries. However, on Windows, the only way to build the release
@@ -24,6 +67,42 @@ the release binaries following these steps:
 This will then create a directory of the form `btcd-<TAG>` containing archives
 of the release binaries for each supported operating system and architecture,
 and a manifest file containing the hash of each archive.
+
+### Pushing a release (for maintainers)
+
+Now that the directory `btcd-<TAG>` is created, the manifest file needs to be
+signed by a maintainer and the release files need to be published to GitHub.
+
+Sign the `manifest-<TAG>.txt` file like so:
+```sh
+gpg --sign --detach-sig manifest-<TAG>.txt
+```
+This will create a file named `manifest-<TAG>.txt.sig`, which will must
+be included in the release files later.
+
+#### Note before publishing
+Before publishing, go through the reproducible build process that is outlined
+in this document with the files created from `release/release.sh`. This includes
+verifying commit and tag signatures using `git verify-commit` and git `verify-tag`
+respectively.
+
+Now that we've double-checked everything and have all of the necessary files,
+it's time to publish release files on GitHub.
+Follow [this documentation](https://docs.github.com/en/github/administering-a-repository/managing-releases-in-a-repository)
+to create a release using the GitHub UI, and make sure to write release notes
+which roughly follow the format of [previous release notes](https://github.com/btcsuite/btcd/releases/tag/v0.20.1-beta).
+It's important to include the Go version used to produce the release files in
+the release notes, so users know the correct version of Go to use to reproduce
+and verify the build.
+When following the GitHub documentation, include every file in the `btcd-<TAG>`
+directory.
+
+At this point, a signed commit and tag on that commit should be pushed to the main
+branch. The directory created from running `release/release.sh` should be included
+as release files in the GitHub release UI, and the `manifest-<TAG>.txt` file
+signature, called `manifest-<TAG>.txt.sig`, should also be included.
+A release notes document should be created and written in the GitHub release UI.
+Once all of this is done, feel free to click `Publish Release`!
 
 ## Verifying a Release
 
