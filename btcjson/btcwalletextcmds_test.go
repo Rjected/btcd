@@ -145,7 +145,7 @@ func TestBtcWalletExtCmds(t *testing.T) {
 				return btcjson.NewCmd(
 					"walletcreatefundedpsbt",
 					[]btcjson.PsbtInput{
-						btcjson.PsbtInput{
+						{
 							Txid:     "1234",
 							Vout:     0,
 							Sequence: 0,
@@ -162,7 +162,7 @@ func TestBtcWalletExtCmds(t *testing.T) {
 			staticCmd: func() interface{} {
 				return btcjson.NewWalletCreateFundedPsbtCmd(
 					[]btcjson.PsbtInput{
-						btcjson.PsbtInput{
+						{
 							Txid:     "1234",
 							Vout:     0,
 							Sequence: 0,
@@ -179,7 +179,7 @@ func TestBtcWalletExtCmds(t *testing.T) {
 			marshalled: `{"jsonrpc":"1.0","method":"walletcreatefundedpsbt","params":[[{"txid":"1234","vout":0,"sequence":0}],[{"1234":1234}],1,{},true],"id":1}`,
 			unmarshalled: &btcjson.WalletCreateFundedPsbtCmd{
 				Inputs: []btcjson.PsbtInput{
-					btcjson.PsbtInput{
+					{
 						Txid:     "1234",
 						Vout:     0,
 						Sequence: 0,
