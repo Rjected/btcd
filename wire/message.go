@@ -112,6 +112,9 @@ func makeEmptyMessage(command string) (Message, error) {
 	case CmdBlock:
 		msg = &MsgBlock{}
 
+	case CmdUBlock:
+		msg = &MsgUBlock{}
+
 	case CmdInv:
 		msg = &MsgInv{}
 
@@ -348,6 +351,7 @@ func ReadMessageWithEncodingN(r io.Reader, pver uint32, btcnet BitcoinNet,
 		return totalBytes, nil, nil, err
 	}
 
+	//fmt.Println("PAYLOAD: ", hdr.length)
 	// Enforce maximum message payload.
 	if hdr.length > MaxMessagePayload {
 		str := fmt.Sprintf("message payload is too large - header "+
